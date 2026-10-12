@@ -216,6 +216,7 @@ async def create_reply(
         "content": reply.content,
         "voice_transcribed": reply.voice_transcribed,
         "sender": reply.sender,
+        "sender_device": reply.sender_device,
         "created_at": reply.created_at.isoformat(),
     }
     asyncio.create_task(ws_manager.broadcast("reply_created", reply_data))

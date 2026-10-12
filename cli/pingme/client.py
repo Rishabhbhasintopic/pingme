@@ -165,3 +165,16 @@ class PingmeClient:
             raise PingmeError(f"Cannot connect to server at {self.server_url}")
         except httpx.RequestError as e:
             raise PingmeError(f"Network error: {str(e)}")
+
+    def get_live_chat_feed(self, limit: int = 100) -> Dict[str, Any]:
+        url = f"{self.server_url}/api/v1/conversations/live/feed"
+        params = {"limit": limit}
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                res = client.get(url, params=params, headers=self._headers())
+                self._handle_error(res)
+                return res.json()
+        except httpx.ConnectError:
+            raise PingmeError(f"Cannot connect to server at {self.server_url}")
+        except httpx.RequestError as e:
+            raise PingmeError(f"Network error: {str(e)}")

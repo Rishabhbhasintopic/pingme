@@ -1,6 +1,6 @@
 import React from 'react';
 import type { TabType } from '../types';
-import { Inbox, MessageSquare, Mic, Settings } from 'lucide-react';
+import { Inbox, MessageSquare, Mic, Radio, Settings } from 'lucide-react';
 
 interface BottomNavProps {
   activeTab: TabType;
@@ -14,7 +14,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   unreadCount = 0,
 }) => {
   const tabs = [
-    { id: 'inbox' as TabType, label: 'Inbox', icon: Inbox, badge: unreadCount },
+    { id: 'chat' as TabType, label: 'Live Chat', icon: Radio },
+    { id: 'inbox' as TabType, label: 'Alerts', icon: Inbox, badge: unreadCount },
     { id: 'conversations' as TabType, label: 'Threads', icon: MessageSquare },
     { id: 'voice' as TabType, label: 'Voice', icon: Mic },
     { id: 'settings' as TabType, label: 'Settings', icon: Settings },

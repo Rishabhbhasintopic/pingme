@@ -62,4 +62,24 @@ export interface SpeechSettings {
   continuousRecording: boolean;
 }
 
-export type TabType = 'inbox' | 'conversations' | 'voice' | 'settings';
+export interface LiveChatItem {
+  id: string;
+  type: 'message' | 'reply';
+  sender: string;
+  sender_device?: string;
+  content: string;
+  title?: string | null;
+  priority?: string;
+  created_at: string;
+  voice_transcribed?: boolean;
+  message_id?: string;
+}
+
+export interface LiveChatFeedResponse {
+  conversation_id: string;
+  title: string;
+  items: LiveChatItem[];
+  latest_message_id?: string | null;
+}
+
+export type TabType = 'chat' | 'inbox' | 'conversations' | 'voice' | 'settings';

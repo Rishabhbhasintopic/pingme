@@ -76,16 +76,19 @@ async def notify_reply_arrived(message_id: str):
         event.set()
 
 
+DEFAULT_LIVE_CONVERSATION_ID = "live-chat-default"
+
+
 def get_or_create_conversation(
     db: Session, conversation_id: Optional[str] = None, title: Optional[str] = None
 ) -> Conversation:
-    if conversation_id:
-        conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
-        if conv:
-            return conv
+    target_id = conversation_id or DEFAULT_LIVE_CONVERSATION_ID
+    conv = db.query(Conversation).filter(Conversation.id == target_id).first()
+    if conv:
+        return conv
 
-    # Create new conversation
-    conv = Conversation(title=title or "General")
+    # Create new conversation with targeted ID
+    conv = Conversation(id=target_id, title=title or "Live Chat")
     db.add(conv)
     db.flush()
     return conv

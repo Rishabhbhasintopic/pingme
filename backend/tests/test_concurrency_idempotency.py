@@ -25,11 +25,15 @@ def test_idempotency_prevents_duplicate_messages(client, auth_headers):
 def test_multiple_messages_in_distinct_conversations(client, auth_headers):
     # Message A
     res_a = client.post(
-        "/api/v1/messages", json={"content": "Topic A question"}, headers=auth_headers
+        "/api/v1/messages",
+        json={"content": "Topic A question", "conversation_id": "topic-a"},
+        headers=auth_headers,
     ).json()
     # Message B
     res_b = client.post(
-        "/api/v1/messages", json={"content": "Topic B question"}, headers=auth_headers
+        "/api/v1/messages",
+        json={"content": "Topic B question", "conversation_id": "topic-b"},
+        headers=auth_headers,
     ).json()
 
     assert res_a["id"] != res_b["id"]

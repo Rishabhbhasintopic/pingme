@@ -259,26 +259,16 @@ def chat_command(title, conversation, new, no_sound):
     Receives all iPhone replies and voice messages live as they arrive.
     """
     client = get_client()
-
-    # Determine conversation
-    active_conv_id = conversation
+    default_live_conv = "live-chat-default"
+    active_conv_id = conversation or default_live_conv
     conv_title = title or "Live Terminal Chat"
-
-    if not active_conv_id and not new:
-        try:
-            convs = client.get_conversations()
-            if convs:
-                active_conv_id = convs[0].get("id")
-                conv_title = title or convs[0].get("title") or "Live Terminal Chat"
-        except Exception:
-            pass
 
     console.print(
         Panel(
-            f"[bold cyan]Starting Live Chat Session: '{conv_title}'[/bold cyan]\n"
-            f"Server: [dim]{client.server_url}[/dim]\n"
-            f"[dim]• Real-time full-duplex messaging: incoming iPhone replies & voice dictation appear instantly[/dim]\n"
-            f"[dim]• Type message anytime and press Enter. Commands: [yellow]/clear[/yellow], [yellow]/exit[/yellow][/dim]",
+            f"[bold cyan]Live Chat Session Active[/bold cyan]\n"
+            f"Channel: [dim]{active_conv_id}[/dim]  •  Server: [dim]{client.server_url}[/dim]\n"
+            f"[dim]• Unified live stream: terminal messages & iPhone voice/text replies appear here instantly[/dim]\n"
+            f"[dim]• Type anytime and press Enter. Commands: [yellow]/clear[/yellow], [yellow]/exit[/yellow][/dim]",
             title="[bold green]● PINGME LIVE CHAT[/bold green]",
             border_style="cyan",
         )
@@ -288,30 +278,31 @@ def chat_command(title, conversation, new, no_sound):
     seen_reply_ids = set()
     stop_event = threading.Event()
 
-    # Preload recent messages if resuming conversation
-    if active_conv_id:
-        try:
-            details = client.get_conversation_details(active_conv_id)
-            msgs = details.get("messages", [])
-            for m in msgs:
-                seen_msg_ids.add(m.get("id"))
-                for r in m.get("replies", []):
-                    seen_reply_ids.add(r.get("id"))
+    # Preload recent messages from live chat feed
+    try:
+        feed_data = client.get_live_chat_feed(limit=50)
+        items = feed_data.get("items", [])
+        for item in items:
+            if item.get("type") == "message":
+                seen_msg_ids.add(item.get("id"))
+            elif item.get("type") == "reply":
+                seen_reply_ids.add(item.get("id"))
 
-            recent = msgs[-6:]
-            if recent:
-                console.print("[dim]─── Recent Messages in This Thread ───[/dim]")
-                for m in recent:
-                    t = m.get("created_at", "")[11:16]
-                    sender_lbl = "You" if m.get("sender") == "cli" else "iPhone"
-                    console.print(f"[dim]{t}[/dim] [blue]{sender_lbl}:[/blue] {m.get('content')}")
-                    for r in m.get("replies", []):
-                        rt = r.get("created_at", "")[11:16]
-                        v = " 🎤 (Voice)" if r.get("voice_transcribed") else ""
-                        console.print(f"[dim]{rt}[/dim] [green]iPhone{v}:[/green] {r.get('content')}")
-                console.print("[dim]──────────────────────────────────────[/dim]\n")
-        except Exception:
-            pass
+        recent = items[-8:]
+        if recent:
+            console.print("[dim]─── Recent Messages in Live Chat ───[/dim]")
+            for it in recent:
+                t = it.get("created_at", "")[11:16]
+                if it.get("type") == "message":
+                    sender_lbl = "You" if it.get("sender") == "cli" else (it.get("sender_device") or "Terminal")
+                    console.print(f"[dim]{t}[/dim] [blue]{sender_lbl}:[/blue] {it.get('content')}")
+                else:
+                    v = " 🎤 (Voice)" if it.get("voice_transcribed") else ""
+                    dev = it.get("sender_device") or "iPhone"
+                    console.print(f"[dim]{t}[/dim] [green]{dev}{v}:[/green] {it.get('content')}")
+            console.print("[dim]──────────────────────────────────────[/dim]\n")
+    except Exception:
+        pass
 
     def on_reply_received(reply: dict):
         r_id = reply.get("id")
@@ -359,12 +350,12 @@ def chat_command(title, conversation, new, no_sound):
 
     def poll_messages():
         try:
-            data = client.get_messages(limit=5)
-            for m in reversed(data.get("items", [])):
-                if m.get("id") not in seen_msg_ids and m.get("sender") != "cli":
-                    on_message_received(m)
-                for r in m.get("replies", []):
-                    on_reply_received(r)
+            feed_data = client.get_live_chat_feed(limit=50)
+            for item in feed_data.get("items", []):
+                if item.get("type") == "reply":
+                    on_reply_received(item)
+                elif item.get("type") == "message" and item.get("sender") != "cli":
+                    on_message_received(item)
         except Exception:
             pass
 

@@ -4,6 +4,7 @@ import { BottomNav } from './components/BottomNav';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { InboxPage } from './pages/InboxPage';
 import { ConversationsPage } from './pages/ConversationsPage';
+import { LiveChatPage } from './pages/LiveChatPage';
 import { VoicePage } from './pages/VoicePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { usePushNotifications } from './hooks/usePushNotifications';
@@ -13,7 +14,7 @@ import { api } from './services/api';
 import type { Message, TabType } from './types';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('inbox');
+  const [activeTab, setActiveTab] = useState<TabType>('chat');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [currentSpeakingId, setCurrentSpeakingId] = useState<string | null>(null);
@@ -196,8 +197,10 @@ export function App() {
     <div className="min-h-screen bg-[#090a0f] text-gray-100 flex flex-col font-sans">
       <Header
         title={
-          activeTab === 'inbox'
-            ? 'Inbox'
+          activeTab === 'chat'
+            ? 'Live Chat'
+            : activeTab === 'inbox'
+            ? 'Alerts'
             : activeTab === 'conversations'
             ? 'Threads'
             : activeTab === 'voice'
@@ -211,6 +214,19 @@ export function App() {
 
       <main className="flex-1 overflow-x-hidden safe-bottom-nav">
         <PWAInstallPrompt isStandalone={isStandalone} />
+
+        {activeTab === 'chat' && (
+          <LiveChatPage
+            onSpeak={(t) => speak(t)}
+            isSpeaking={isSpeaking}
+            onStopSpeaking={stopSpeaking}
+            liveEventSeq={liveEventSeq}
+            autoSpeakEnabled={speechSettings.autoSpeak}
+            onToggleAutoSpeak={() =>
+              updateSpeechSettings({ autoSpeak: !speechSettings.autoSpeak })
+            }
+          />
+        )}
 
         {activeTab === 'inbox' && (
           <InboxPage

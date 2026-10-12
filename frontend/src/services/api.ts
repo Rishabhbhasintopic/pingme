@@ -1,4 +1,4 @@
-import type { Conversation, Device, Message, Reply, TokenItem } from '../types';
+import type { Conversation, Device, LiveChatFeedResponse, Message, Reply, TokenItem } from '../types';
 import { getStoredApiUrl, getStoredToken } from './storage';
 
 const getHeaders = () => {
@@ -91,6 +91,34 @@ export const api = {
       headers: getHeaders(),
     });
     if (!res.ok) throw new Error(`Failed to fetch conversation: ${res.statusText}`);
+    return res.json();
+  },
+
+  async getLiveChatFeed(limit = 100): Promise<LiveChatFeedResponse> {
+    const baseUrl = getStoredApiUrl();
+    const res = await fetch(`${baseUrl}/api/v1/conversations/live/feed?limit=${limit}`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch live chat feed: ${res.statusText}`);
+    return res.json();
+  },
+
+  async sendLiveReply(
+    content: string,
+    voiceTranscribed = false,
+    senderDevice = 'iPhone'
+  ): Promise<Reply> {
+    const baseUrl = getStoredApiUrl();
+    const res = await fetch(`${baseUrl}/api/v1/conversations/live/reply`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        content,
+        voice_transcribed: voiceTranscribed,
+        sender_device: senderDevice,
+      }),
+    });
+    if (!res.ok) throw new Error(`Failed to send reply to live chat: ${res.statusText}`);
     return res.json();
   },
 
