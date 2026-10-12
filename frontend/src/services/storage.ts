@@ -6,9 +6,12 @@ const DEVICE_ID_KEY = 'pingme_device_id';
 const DEVICE_NAME_KEY = 'pingme_device_name';
 const SPEECH_SETTINGS_KEY = 'pingme_speech_settings';
 
-export const DEFAULT_API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:8000'
-  : window.location.origin;
+export const DEFAULT_API_URL =
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000'
+    : window.location.hostname.includes('rishabhslab.in')
+    ? 'http://pms.rishabhslab.in'
+    : window.location.origin;
 
 export const DEFAULT_TOKEN = 'pm_init_admin_token_please_change';
 
@@ -21,7 +24,17 @@ export const setStoredToken = (token: string): void => {
 };
 
 export const getStoredApiUrl = (): string => {
-  return localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL;
+  const saved = localStorage.getItem(API_URL_KEY);
+  if (saved) {
+    const isLocalhostHost =
+      window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    // If running on a non-localhost host (like an iPhone or LAN device), localhost:8000 is unreachable
+    if (!isLocalhostHost && (saved.includes('localhost') || saved.includes('127.0.0.1'))) {
+      return DEFAULT_API_URL;
+    }
+    return saved;
+  }
+  return DEFAULT_API_URL;
 };
 
 export const setStoredApiUrl = (url: string): void => {

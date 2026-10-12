@@ -183,12 +183,69 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
       {/* Server & Authentication Settings */}
       <div className="glass-card rounded-2xl p-4 space-y-3">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-          <Server className="w-3.5 h-3.5 text-blue-400" /> Connection & Credentials
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+            <Server className="w-3.5 h-3.5 text-blue-400" /> Connection & Credentials
+          </h3>
+          <button
+            type="button"
+            onClick={async () => {
+              setTestingPush(true);
+              try {
+                const res = await fetch(`${serverUrl}/api/v1/health`, {
+                  headers: { Authorization: `Bearer ${apiToken}` },
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  alert(`✓ Connected to backend!\nStatus: ${data.status}\nApp: ${data.app}`);
+                } else {
+                  alert(`✗ Failed to connect (${res.status} ${res.statusText})`);
+                }
+              } catch (e: any) {
+                alert(`✗ Connection Error: ${e.message}\nMake sure backend is running and URL is reachable from this device.`);
+              } finally {
+                setTestingPush(false);
+              }
+            }}
+            className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold px-2 py-0.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 transition-all"
+          >
+            Test Connection
+          </button>
+        </div>
 
         <div>
-          <label className="text-xs text-gray-400 block mb-1">Backend Server URL</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs text-gray-400 block">Backend Server URL</label>
+            <div className="flex items-center gap-1.5 text-[10px]">
+              <span className="text-gray-500">Presets:</span>
+              <button
+                type="button"
+                onClick={() => setServerUrl(window.location.origin)}
+                className="text-gray-400 hover:text-white underline decoration-dotted"
+                title="Use current website origin"
+              >
+                Origin
+              </button>
+              <span className="text-gray-600">|</span>
+              <button
+                type="button"
+                onClick={() => setServerUrl('http://pms.rishabhslab.in')}
+                className="text-gray-400 hover:text-white underline decoration-dotted"
+                title="Use Cloud Gateway"
+              >
+                pms.rishabhslab.in
+              </button>
+              <span className="text-gray-600">|</span>
+              <button
+                type="button"
+                onClick={() => setServerUrl('http://localhost:8000')}
+                className="text-gray-400 hover:text-white underline decoration-dotted"
+                title="Use local machine port 8000"
+              >
+                localhost:8000
+              </button>
+            </div>
+          </div>
           <input
             type="text"
             value={serverUrl}

@@ -37,13 +37,17 @@ export function App() {
     unsubscribe: unsubscribePush,
   } = usePushNotifications();
 
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+
   // Load messages from server
   const loadMessages = useCallback(async () => {
     try {
       const res = await api.getMessages();
       setMessages(res.items);
-    } catch (err) {
+      setConnectionError(null);
+    } catch (err: any) {
       console.warn('Failed to load messages:', err);
+      setConnectionError(err?.message || 'Failed to connect to backend server');
     } finally {
       setLoading(false);
     }
@@ -79,10 +83,26 @@ export function App() {
   // Real-time updates via WebSocket
   const handleMessageCreated = useCallback(
     (msg: Message) => {
+      setConnectionError(null);
       setMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev;
         return [msg, ...prev];
       });
+
+      // Show local notification if in background
+      if (
+        typeof window !== 'undefined' &&
+        'Notification' in window &&
+        Notification.permission === 'granted' &&
+        document.hidden
+      ) {
+        try {
+          new Notification(msg.title || 'PINGME Terminal Alert', {
+            body: msg.content,
+            icon: '/icons/icon-192.png',
+          });
+        } catch {}
+      }
 
       // Auto-speak incoming message if enabled
       if (speechSettings.autoSpeak) {
@@ -191,7 +211,9 @@ export function App() {
           <InboxPage
             messages={messages}
             loading={loading}
+            connectionError={connectionError}
             onRefresh={loadMessages}
+            onGoToSettings={() => setActiveTab('settings')}
             onListen={handleListenMessage}
             onSendReply={handleSendReply}
             currentSpeakingMessageId={currentSpeakingId}

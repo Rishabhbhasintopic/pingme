@@ -88,7 +88,10 @@ async def create_message(
         "content": message.content,
         "priority": message.priority,
         "status": message.status,
+        "sender": message.sender,
+        "sender_device": message.sender_device,
         "created_at": message.created_at.isoformat(),
+        "replies": [],
     }
     asyncio.create_task(ws_manager.broadcast("message_created", message_data))
 
