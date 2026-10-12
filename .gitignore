@@ -1,0 +1,37 @@
+# Environment & Secrets
+.env
+*.env.local
+
+# Databases & Runtime Data
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+vapid_keys.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+env/
+venv/
+.pytest_cache/
+*.log
+
+# Frontend & Node
+frontend/node_modules/
+frontend/dist/
+frontend/.tmp/
+.npm/
+
+# Caddy & Docker Volumes
+caddy_data/
+caddy_config/
+
+# OS
+.DS_Store
+Thumbs.db

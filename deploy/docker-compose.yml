@@ -1,0 +1,61 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=sqlite:////app/data/pingme.db
+      - PINGME_DATA_DIR=/app/data
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set in .env}
+      - INITIAL_ADMIN_TOKEN=${INITIAL_ADMIN_TOKEN:?INITIAL_ADMIN_TOKEN must be set in .env}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - VAPID_CLAIMS_SUB=${VAPID_CLAIMS_SUB:-mailto:admin@pingme.local}
+      - CORS_ORIGINS=["https://${DOMAIN:-localhost}","http://localhost","http://localhost:5173"]
+    volumes:
+      - pingme_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - pingme_net
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - pingme_net
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - pingme_net
+
+volumes:
+  pingme_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  pingme_net:
+    driver: bridge
