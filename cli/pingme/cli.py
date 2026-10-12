@@ -1,5 +1,7 @@
+import json
 import os
 import sys
+import threading
 import time
 from typing import Optional
 import click
@@ -247,49 +249,218 @@ def listen_command():
 
 
 @cli.command("chat")
-@click.option("-t", "--title", default="Terminal Chat", help="Chat session title")
-def chat_command(title):
-    """Start an interactive two-way terminal conversation session with iPhone."""
+@click.option("-t", "--title", default=None, help="Chat session title (e.g. 'Live Terminal Chat')")
+@click.option("-c", "--conversation", default=None, help="Attach to a specific conversation ID")
+@click.option("--new", is_flag=True, help="Start a new conversation thread instead of resuming recent")
+@click.option("--no-sound", is_flag=True, help="Disable terminal bell sound on new replies")
+def chat_command(title, conversation, new, no_sound):
+    """
+    Start an interactive real-time two-way conversation session with iPhone.
+    Receives all iPhone replies and voice messages live as they arrive.
+    """
     client = get_client()
+
+    # Determine conversation
+    active_conv_id = conversation
+    conv_title = title or "Live Terminal Chat"
+
+    if not active_conv_id and not new:
+        try:
+            convs = client.get_conversations()
+            if convs:
+                active_conv_id = convs[0].get("id")
+                conv_title = title or convs[0].get("title") or "Live Terminal Chat"
+        except Exception:
+            pass
+
     console.print(
         Panel(
-            f"[bold cyan]Starting interactive chat session: '{title}'[/bold cyan]\n"
-            "Type your message and press Enter. The CLI will send it and wait for your iPhone's reply.\n"
-            "Type [yellow]exit[/yellow] or press [yellow]Ctrl+C[/yellow] to quit.",
-            title="PINGME Interactive Chat",
+            f"[bold cyan]Starting Live Chat Session: '{conv_title}'[/bold cyan]\n"
+            f"Server: [dim]{client.server_url}[/dim]\n"
+            f"[dim]• Real-time full-duplex messaging: incoming iPhone replies & voice dictation appear instantly[/dim]\n"
+            f"[dim]• Type message anytime and press Enter. Commands: [yellow]/clear[/yellow], [yellow]/exit[/yellow][/dim]",
+            title="[bold green]● PINGME LIVE CHAT[/bold green]",
+            border_style="cyan",
         )
     )
 
-    try:
-        while True:
+    seen_msg_ids = set()
+    seen_reply_ids = set()
+    stop_event = threading.Event()
+
+    # Preload recent messages if resuming conversation
+    if active_conv_id:
+        try:
+            details = client.get_conversation_details(active_conv_id)
+            msgs = details.get("messages", [])
+            for m in msgs:
+                seen_msg_ids.add(m.get("id"))
+                for r in m.get("replies", []):
+                    seen_reply_ids.add(r.get("id"))
+
+            recent = msgs[-6:]
+            if recent:
+                console.print("[dim]─── Recent Messages in This Thread ───[/dim]")
+                for m in recent:
+                    t = m.get("created_at", "")[11:16]
+                    sender_lbl = "You" if m.get("sender") == "cli" else "iPhone"
+                    console.print(f"[dim]{t}[/dim] [blue]{sender_lbl}:[/blue] {m.get('content')}")
+                    for r in m.get("replies", []):
+                        rt = r.get("created_at", "")[11:16]
+                        v = " 🎤 (Voice)" if r.get("voice_transcribed") else ""
+                        console.print(f"[dim]{rt}[/dim] [green]iPhone{v}:[/green] {r.get('content')}")
+                console.print("[dim]──────────────────────────────────────[/dim]\n")
+        except Exception:
+            pass
+
+    def on_reply_received(reply: dict):
+        r_id = reply.get("id")
+        if not r_id or r_id in seen_reply_ids:
+            return
+        seen_reply_ids.add(r_id)
+
+        created = reply.get("created_at", "")
+        t_str = created[11:19] if len(created) >= 19 else time.strftime("%H:%M:%S")
+        is_voice = reply.get("voice_transcribed", False)
+        voice_badge = " [bold magenta]🎤 (Voice Dictated)[/bold magenta]" if is_voice else ""
+        device_name = reply.get("sender_device") or "iPhone"
+        content = reply.get("content", "")
+
+        if not no_sound:
             try:
-                user_msg = console.input("[bold blue]You (Terminal) > [/bold blue]").strip()
+                sys.stdout.write("\a")
+                sys.stdout.flush()
+            except Exception:
+                pass
+
+        console.print(f"\n[bold green][{t_str}] {device_name}{voice_badge} >[/bold green] [bold white]{content}[/bold white]\n")
+
+    def on_message_received(msg: dict):
+        m_id = msg.get("id")
+        if not m_id or m_id in seen_msg_ids:
+            return
+        seen_msg_ids.add(m_id)
+        if msg.get("sender") == "cli":
+            return
+
+        created = msg.get("created_at", "")
+        t_str = created[11:19] if len(created) >= 19 else time.strftime("%H:%M:%S")
+        content = msg.get("content", "")
+        device_name = msg.get("sender_device") or "iPhone"
+
+        if not no_sound:
+            try:
+                sys.stdout.write("\a")
+                sys.stdout.flush()
+            except Exception:
+                pass
+
+        console.print(f"\n[bold green][{t_str}] {device_name} >[/bold green] [bold white]{content}[/bold white]\n")
+
+    def poll_messages():
+        try:
+            data = client.get_messages(limit=5)
+            for m in reversed(data.get("items", [])):
+                if m.get("id") not in seen_msg_ids and m.get("sender") != "cli":
+                    on_message_received(m)
+                for r in m.get("replies", []):
+                    on_reply_received(r)
+        except Exception:
+            pass
+
+    def realtime_listener():
+        ws_base = client.server_url.replace("https://", "wss://").replace("http://", "ws://")
+        ws_url = f"{ws_base}/api/v1/ws?token={client.token}"
+        last_poll = time.time()
+
+        while not stop_event.is_set():
+            try:
+                import websockets.sync.client
+                with websockets.sync.client.connect(ws_url, open_timeout=4.0) as ws:
+                    while not stop_event.is_set():
+                        try:
+                            raw = ws.recv(timeout=1.0)
+                            evt = json.loads(raw)
+                            etype = evt.get("type")
+                            edata = evt.get("data", {})
+                            if etype == "reply_created":
+                                on_reply_received(edata)
+                            elif etype == "message_created":
+                                on_message_received(edata)
+                        except TimeoutError:
+                            now = time.time()
+                            if now - last_poll >= 3.0:
+                                last_poll = now
+                                poll_messages()
+            except Exception:
+                poll_messages()
+                stop_event.wait(1.5)
+
+    listener_thread = threading.Thread(target=realtime_listener, daemon=True)
+    listener_thread.start()
+
+    # Non-blocking input loop with prompt_toolkit
+    try:
+        from prompt_toolkit import PromptSession
+        from prompt_toolkit.patch_stdout import patch_stdout
+
+        session = PromptSession()
+        with patch_stdout():
+            while not stop_event.is_set():
+                try:
+                    user_input = session.prompt("You (Terminal) > ").strip()
+                except (KeyboardInterrupt, EOFError):
+                    break
+
+                if not user_input:
+                    continue
+                if user_input.lower() in ("/exit", "exit", "quit", ":q"):
+                    break
+                if user_input.lower() == "/clear":
+                    console.clear()
+                    continue
+                if user_input.lower() == "/help":
+                    console.print("[dim]Commands: /clear to clear screen, /exit to quit.[/dim]")
+                    continue
+
+                try:
+                    msg = client.send_message(
+                        content=user_input,
+                        title=conv_title,
+                        conversation_id=active_conv_id,
+                    )
+                    seen_msg_ids.add(msg.get("id"))
+                    active_conv_id = msg.get("conversation_id")
+                    t_now = time.strftime("%H:%M:%S")
+                    console.print(f"[bold blue][{t_now}] You > [/bold blue]{user_input}")
+                except PingmeError as e:
+                    console.print(f"[red]Error sending: {e}[/red]")
+    except ImportError:
+        # Fallback if prompt_toolkit not present
+        while not stop_event.is_set():
+            try:
+                user_input = input("You (Terminal) > ").strip()
             except (KeyboardInterrupt, EOFError):
                 break
-
-            if not user_msg:
+            if not user_input:
                 continue
-            if user_msg.lower() in ("exit", "quit", ":q"):
+            if user_input.lower() in ("/exit", "exit", "quit", ":q"):
                 break
-
             try:
-                msg = client.send_message(content=user_msg, title=title)
-                msg_id = msg.get("id")
-
-                with console.status("[bold cyan]Waiting for iPhone reply...[/bold cyan]", spinner="dots"):
-                    reply = client.wait_for_reply(message_id=msg_id, timeout=120)
-
-                if reply:
-                    voice = " 🎤" if reply.get("voice_transcribed") else ""
-                    console.print(f"[bold green]iPhone{voice} > [/bold green]{reply.get('content')}\n")
-                else:
-                    console.print("[dim italic](No reply within 120s)[/dim italic]\n")
+                msg = client.send_message(
+                    content=user_input,
+                    title=conv_title,
+                    conversation_id=active_conv_id,
+                )
+                seen_msg_ids.add(msg.get("id"))
+                active_conv_id = msg.get("conversation_id")
+                t_now = time.strftime("%H:%M:%S")
+                console.print(f"[bold blue][{t_now}] You > [/bold blue]{user_input}")
             except PingmeError as e:
-                console.print(f"[red]Error: {e}[/red]")
-    except KeyboardInterrupt:
-        pass
-
-    console.print("\n[yellow]Chat session ended.[/yellow]")
+                console.print(f"[red]Error sending: {e}[/red]")
+    finally:
+        stop_event.set()
+        console.print("\n[yellow]Live chat session ended.[/yellow]")
 
 
 @cli.command("doctor")

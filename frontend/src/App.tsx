@@ -38,6 +38,8 @@ export function App() {
   } = usePushNotifications();
 
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [liveEventSeq, setLiveEventSeq] = useState<number>(0);
+  const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
 
   // Load messages from server
   const loadMessages = useCallback(async () => {
@@ -110,6 +112,7 @@ export function App() {
         setCurrentSpeakingId(msg.id);
         speak(textToSpeak, () => setCurrentSpeakingId(null));
       }
+      setLiveEventSeq((prev) => prev + 1);
     },
     [speechSettings.autoSpeak, speak]
   );
@@ -130,12 +133,14 @@ export function App() {
         return m;
       })
     );
+    setLiveEventSeq((prev) => prev + 1);
   }, []);
 
   const handleMessageRead = useCallback((data: any) => {
     setMessages((prev) =>
       prev.map((m) => (m.id === data.message_id ? { ...m, status: 'read' } : m))
     );
+    setLiveEventSeq((prev) => prev + 1);
   }, []);
 
   const { isConnected } = useWebSocketMessages({
@@ -217,6 +222,10 @@ export function App() {
             onListen={handleListenMessage}
             onSendReply={handleSendReply}
             currentSpeakingMessageId={currentSpeakingId}
+            onOpenThread={(convId) => {
+              setSelectedConvId(convId);
+              setActiveTab('conversations');
+            }}
           />
         )}
 
@@ -224,6 +233,9 @@ export function App() {
           <ConversationsPage
             onListen={handleListenMessage}
             onSendReply={handleSendReply}
+            liveEventSeq={liveEventSeq}
+            initialConversationId={selectedConvId}
+            onClearInitialConversationId={() => setSelectedConvId(null)}
           />
         )}
 

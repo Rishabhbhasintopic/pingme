@@ -88,3 +88,20 @@ def test_cli_doctor_mocked():
         result = runner.invoke(cli, ["doctor"])
         assert result.exit_code == 0
         assert "Diagnostics complete!" in result.output
+
+
+def test_cli_chat_session_mocked():
+    with patch("pingme.client.PingmeClient.get_conversations") as mock_convs, patch(
+        "pingme.client.PingmeClient.get_conversation_details"
+    ) as mock_details:
+        mock_convs.return_value = [{"id": "conv-1", "title": "Test Chat"}]
+        mock_details.return_value = {
+            "id": "conv-1",
+            "title": "Test Chat",
+            "messages": [],
+        }
+
+        result = runner.invoke(cli, ["chat"], input="/exit\n")
+        assert result.exit_code == 0
+        assert "LIVE CHAT" in result.output
+        assert "Live chat session ended" in result.output

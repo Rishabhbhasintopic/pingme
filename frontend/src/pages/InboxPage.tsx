@@ -13,6 +13,7 @@ interface InboxPageProps {
   onListen: (message: Message) => void;
   onSendReply: (messageId: string, content: string, voiceTranscribed: boolean) => Promise<void>;
   currentSpeakingMessageId: string | null;
+  onOpenThread?: (conversationId: string) => void;
 }
 
 export const InboxPage: React.FC<InboxPageProps> = ({
@@ -24,6 +25,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({
   onListen,
   onSendReply,
   currentSpeakingMessageId,
+  onOpenThread,
 }) => {
   const [search, setSearch] = useState('');
   const [filterPriority, setFilterPriority] = useState<string>('all');
@@ -110,6 +112,7 @@ export const InboxPage: React.FC<InboxPageProps> = ({
               message={msg}
               onListen={onListen}
               onSendReply={onSendReply}
+              onOpenThread={onOpenThread}
               isCurrentlySpeaking={currentSpeakingMessageId === msg.id}
             />
           ))}

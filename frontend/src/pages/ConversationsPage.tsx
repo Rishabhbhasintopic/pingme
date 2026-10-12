@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { Conversation, Message, Reply } from '../types';
 import { api } from '../services/api';
 import { ReplyComposer } from '../components/ReplyComposer';
@@ -8,19 +8,26 @@ import { ArrowLeft, MessageSquare, Volume2, Mic, Clock } from 'lucide-react';
 interface ConversationsPageProps {
   onListen: (message: Message) => void;
   onSendReply: (messageId: string, content: string, voiceTranscribed: boolean) => Promise<void>;
+  liveEventSeq?: number;
+  initialConversationId?: string | null;
+  onClearInitialConversationId?: () => void;
 }
 
 export const ConversationsPage: React.FC<ConversationsPageProps> = ({
   onListen,
   onSendReply,
+  liveEventSeq,
+  initialConversationId,
+  onClearInitialConversationId,
 }) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialConversationId || null);
   const [activeThread, setActiveThread] = useState<{
     id: string;
     title: string;
     messages: Message[];
   } | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const loadConversations = async () => {
     try {
@@ -43,7 +50,26 @@ export const ConversationsPage: React.FC<ConversationsPageProps> = ({
 
   useEffect(() => {
     loadConversations();
-  }, []);
+    if (initialConversationId) {
+      loadThread(initialConversationId);
+    }
+  }, [initialConversationId]);
+
+  // Live WebSocket update sync
+  useEffect(() => {
+    if (selectedId) {
+      loadThread(selectedId);
+    } else {
+      loadConversations();
+    }
+  }, [liveEventSeq]);
+
+  // Auto-scroll to bottom of chat when new message arrives
+  useEffect(() => {
+    if (activeThread?.messages) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeThread?.messages]);
 
   const handleThreadReply = async (content: string, voiceTranscribed: boolean) => {
     if (!activeThread || activeThread.messages.length === 0) return;
@@ -61,6 +87,7 @@ export const ConversationsPage: React.FC<ConversationsPageProps> = ({
             onClick={() => {
               setSelectedId(null);
               setActiveThread(null);
+              onClearInitialConversationId?.();
               loadConversations();
             }}
             className="p-1.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5"
@@ -130,6 +157,7 @@ export const ConversationsPage: React.FC<ConversationsPageProps> = ({
                 ))}
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Thread Reply Composer Footer */}

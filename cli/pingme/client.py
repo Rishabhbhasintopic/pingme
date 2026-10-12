@@ -153,3 +153,15 @@ class PingmeClient:
             raise PingmeError(f"Cannot connect to server at {self.server_url}")
         except httpx.RequestError as e:
             raise PingmeError(f"Network error: {str(e)}")
+
+    def get_conversation_details(self, conversation_id: str) -> Dict[str, Any]:
+        url = f"{self.server_url}/api/v1/conversations/{conversation_id}"
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                res = client.get(url, headers=self._headers())
+                self._handle_error(res)
+                return res.json()
+        except httpx.ConnectError:
+            raise PingmeError(f"Cannot connect to server at {self.server_url}")
+        except httpx.RequestError as e:
+            raise PingmeError(f"Network error: {str(e)}")

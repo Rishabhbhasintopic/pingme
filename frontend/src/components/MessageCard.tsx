@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import type { Message, Reply } from '../types';
 import { PriorityBadge, StatusBadge } from './StatusBadge';
 import { ReplyComposer } from './ReplyComposer';
-import { Volume2, MessageSquare, ChevronDown, ChevronUp, Mic, CornerDownRight } from 'lucide-react';
+import { Volume2, MessageSquare, ChevronDown, ChevronUp, Mic, CornerDownRight, MessagesSquare } from 'lucide-react';
 
 interface MessageCardProps {
   message: Message;
   onListen: (message: Message) => void;
   onSendReply: (messageId: string, content: string, voiceTranscribed: boolean) => Promise<void>;
+  onOpenThread?: (conversationId: string) => void;
   isCurrentlySpeaking: boolean;
 }
 
@@ -15,6 +16,7 @@ export const MessageCard: React.FC<MessageCardProps> = ({
   message,
   onListen,
   onSendReply,
+  onOpenThread,
   isCurrentlySpeaking,
 }) => {
   const [showReplyBox, setShowReplyBox] = useState(false);
@@ -31,7 +33,6 @@ export const MessageCard: React.FC<MessageCardProps> = ({
 
   const handleReplySubmit = async (content: string, voiceTranscribed: boolean) => {
     await onSendReply(message.id, content, voiceTranscribed);
-    setShowReplyBox(false);
   };
 
   return (
@@ -84,6 +85,17 @@ export const MessageCard: React.FC<MessageCardProps> = ({
               </span>
             )}
           </button>
+
+          {onOpenThread && (
+            <button
+              onClick={() => onOpenThread(message.conversation_id)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 hover:text-white transition-all"
+              title="Open full conversation thread"
+            >
+              <MessagesSquare className="w-3.5 h-3.5" />
+              <span>Chat Thread</span>
+            </button>
+          )}
         </div>
 
         {replies.length > 0 && (
